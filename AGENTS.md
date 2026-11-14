@@ -32,7 +32,7 @@ All repositories live in the GitHub organization `Hack-Challenges-recommendation
 ## Running the whole system
 
 - `docker compose up` in this repository starts Postgres, Redis, Kafka and all seven apps, then serves the web app on http://localhost:8080.
-- Images are pulled as `<DOCKERHUB_USER>/recommendation-system-<service>` when they are on Docker Hub; CI publishes them from `main`. Otherwise compose builds them from the `develop` branches on GitHub, which takes about 20 minutes.
+- Images are pulled as `<DOCKERHUB_USER>/hackathon-recommendation-system-<service>` when they are on Docker Hub; CI publishes them from `main`. Otherwise compose builds them from the `develop` branches on GitHub, which takes about 20 minutes.
 - Every setting has a default, and `env.example` lists them all. Copy it to `.env` to change a value; for example, `AUTH_SERVICE_BUILD=../auth-service` builds that app from a local clone.
 - The case data goes into `./data`; git ignores the folder.
 
