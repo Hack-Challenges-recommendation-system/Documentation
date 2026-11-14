@@ -1,0 +1,5 @@
+# Local settings
+.env
+
+# The case data must never be committed: the repository is public
+/data/
