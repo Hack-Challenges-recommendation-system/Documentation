@@ -25,16 +25,16 @@ All repositories live in the GitHub organization `Hack-Challenges-recommendation
 - **Who the user is:** auth-service issues HS512 JWTs: an access token (5 minutes) and a refresh token (30 days, the HttpOnly cookie `jwtRefreshToken`). api-gateway verifies the access token, rejects tokens that auth-service denylisted in Redis on logout, removes any `X-User-Id` sent by the client and sets it from the token. Services trust `X-User-Id` and never parse tokens.
 - **Paths:** every service listens on 8080, serves under `/api/v1` and owns distinct path prefixes. api-gateway routes by prefix; the table is in its AGENTS.md.
 - **Events between services:** auth-service publishes `users.to.create` `{userId, nickname}` and `users.to.delete` `{userId}` to Kafka, keyed by user id and without type headers; profile-service consumes them. Both services declare these topics with 3 partitions.
-- **Storage:** one Postgres with a database per service (`auth`, `profile`, `catalog`, `metric`), each migrated by the Flyway of its service. Redis holds the access-token denylist.
-- **Case data:** mounted read-only as `/data` into catalog-service and metric-service, which import it at startup. Its layout isn't mapped yet; the importers read a temporary JSON format described in the AGENTS.md of those services.
-- **Recommendations:** recommendation-service, not built yet, will collect the profile, recent events and catalog candidates, ask the LLM to rank and explain them, validate the answer and log impressions. When it can't answer, the frontend shows topic matching from catalog search instead and marks it `engine: baseline`.
+- **Storage:** one Postgres with a database per service (`auth`, `profile`, `catalog`, `metric`), each migrated by the Flyway of its service, plus `case_data`, the restored case dump. Redis holds the access-token denylist.
+- **Case data:** the PostgreSQL dump `alfa_course_hackathon.backup` goes into `./data` of this repository. On every start the one-shot `case-data` service restores it into `case_data` (again only when the file changes) and writes `catalog.json` and `events.json` to the `case_export` volume with the SQL in `case-data/`, which also documents the field mapping the team agreed on. catalog-service and metric-service wait for it and import those files. Without a dump they get `./data/catalog.json` and `./data/events.json` if present, else empty lists, so the system still starts.
+- **Recommendations:** recommendation-service collects the profile, recent events and catalog candidates, asks the LLM to rank and explain them, validates the answer and falls back to the topic-match baseline (`engine: baseline`). When it can't answer at all, the frontend shows topic matching from catalog search instead.
 
 ## Running the whole system
 
 - `docker compose up` in this repository starts Postgres, Redis, Kafka and all seven apps, then serves the web app on http://localhost:8080.
 - Images are pulled as `<DOCKERHUB_USER>/hackathon-recommendation-system-<service>` when they are on Docker Hub; CI publishes them from `main`. Otherwise compose builds them from the `develop` branches on GitHub, which takes about 20 minutes.
 - Every setting has a default, and `env.example` lists them all. Copy it to `.env` to change a value; for example, `AUTH_SERVICE_BUILD=../auth-service` builds that app from a local clone.
-- The case data goes into `./data`; git ignores the folder.
+- The case dump `alfa_course_hackathon.backup` goes into `./data`; git ignores the folder. Shell and SQL scripts keep LF line endings (`.gitattributes`), because they run inside Linux containers.
 
 ## Rules for every change
 
