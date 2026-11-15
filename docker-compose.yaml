@@ -158,6 +158,8 @@ services:
     restart: unless-stopped
     environment:
       <<: *java-env
+      # Empty: recommendations come from the topic-match baseline
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     healthcheck: *java-healthcheck
 
   api-gateway:
