@@ -1,0 +1,30 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: application
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [api-gateway:8081]
+        labels:
+          service: api-gateway
+      - targets: [auth-service:8081]
+        labels:
+          service: auth-service
+      - targets: [profile-service:8081]
+        labels:
+          service: profile-service
+      - targets: [catalog-service:8081]
+        labels:
+          service: catalog-service
+      - targets: [metric-service:8081]
+        labels:
+          service: metric-service
+      - targets: [recommendation-service:8081]
+        labels:
+          service: recommendation-service
+
+  - job_name: prometheus
+    static_configs:
+      - targets: [prometheus:9090]
