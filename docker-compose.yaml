@@ -7,7 +7,8 @@
 # Every app image is pulled from Docker Hub when it is published there; otherwise compose builds it
 # from the develop branch on GitHub (slower: Maven and npm run inside Docker).
 # All settings have defaults; to change them, copy env.example to .env.
-# The case data goes into ./data (never committed): catalog-service and metric-service import it at startup.
+# The case data goes into ./data (never committed): put alfa_course_hackathon.backup there. On every start the
+# case-data service loads it, and catalog-service and metric-service import the result.
 name: recommendation-system
 
 x-java-env: &java-env
@@ -74,8 +75,25 @@ services:
       retries: 30
       start_period: 20s
 
+  # One-shot job: restores ./data/*.backup into the case_data database (only when the file changes) and exports the
+  # catalog and the interaction log for catalog-service and metric-service. Scripts and the field mapping: ./case-data.
+  case-data:
+    image: postgres:17-alpine
+    entrypoint: ["sh", "/case-data/import.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-admin}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-admin}
+    volumes:
+      - ./data:/data:ro
+      - ./case-data:/case-data:ro
+      - case_export:/export
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   auth-service:
-    image: ${DOCKERHUB_USER:-kekishev}/recommendation-system-auth-service:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USER:-kekishev}/hackathon-recommendation-system-auth-service:${IMAGE_TAG:-latest}
     pull_policy: missing
     build: ${AUTH_SERVICE_BUILD:-https://github.com/Hack-Challenges-recommendation-system/Auth-service.git#develop}
     restart: unless-stopped
@@ -98,7 +116,7 @@ services:
     healthcheck: *java-healthcheck
 
   profile-service:
-    image: ${DOCKERHUB_USER:-kekishev}/recommendation-system-profile-service:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USER:-kekishev}/hackathon-recommendation-system-profile-service:${IMAGE_TAG:-latest}
     pull_policy: missing
     build: ${PROFILE_SERVICE_BUILD:-https://github.com/Hack-Challenges-recommendation-system/Profile-service.git#develop}
     restart: unless-stopped
@@ -116,7 +134,7 @@ services:
     healthcheck: *java-healthcheck
 
   catalog-service:
-    image: ${DOCKERHUB_USER:-kekishev}/recommendation-system-catalog-service:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USER:-kekishev}/hackathon-recommendation-system-catalog-service:${IMAGE_TAG:-latest}
     pull_policy: missing
     build: ${CATALOG_SERVICE_BUILD:-https://github.com/Hack-Challenges-recommendation-system/Catalog-service.git#develop}
     restart: unless-stopped
@@ -125,16 +143,19 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/catalog
       DB_USERNAME: ${POSTGRES_USER:-admin}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-admin}
-      CATALOG_IMPORT_PATH: ${CATALOG_IMPORT_PATH:-file:/data/catalog.json}
+      CATALOG_IMPORT_PATH: ${CATALOG_IMPORT_PATH:-file:/export/catalog.json}
     volumes:
       - ./data:/data:ro
+      - case_export:/export:ro
     depends_on:
       postgres:
         condition: service_healthy
+      case-data:
+        condition: service_completed_successfully
     healthcheck: *java-healthcheck
 
   metric-service:
-    image: ${DOCKERHUB_USER:-kekishev}/recommendation-system-metric-service:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USER:-kekishev}/hackathon-recommendation-system-metric-service:${IMAGE_TAG:-latest}
     pull_policy: missing
     build: ${METRIC_SERVICE_BUILD:-https://github.com/Hack-Challenges-recommendation-system/Metric-service.git#develop}
     restart: unless-stopped
@@ -143,25 +164,30 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/metric
       DB_USERNAME: ${POSTGRES_USER:-admin}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-admin}
-      EVENTS_IMPORT_PATH: ${EVENTS_IMPORT_PATH:-file:/data/events.json}
+      EVENTS_IMPORT_PATH: ${EVENTS_IMPORT_PATH:-file:/export/events.json}
     volumes:
       - ./data:/data:ro
+      - case_export:/export:ro
     depends_on:
       postgres:
         condition: service_healthy
+      case-data:
+        condition: service_completed_successfully
     healthcheck: *java-healthcheck
 
   recommendation-service:
-    image: ${DOCKERHUB_USER:-kekishev}/recommendation-system-recommendation-service:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USER:-kekishev}/hackathon-recommendation-system-recommendation-service:${IMAGE_TAG:-latest}
     pull_policy: missing
     build: ${RECOMMENDATION_SERVICE_BUILD:-https://github.com/Hack-Challenges-recommendation-system/Recommedation-service.git#develop}
     restart: unless-stopped
     environment:
       <<: *java-env
+      # Empty: recommendations come from the topic-match baseline
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     healthcheck: *java-healthcheck
 
   api-gateway:
-    image: ${DOCKERHUB_USER:-kekishev}/recommendation-system-api-gateway:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USER:-kekishev}/hackathon-recommendation-system-api-gateway:${IMAGE_TAG:-latest}
     pull_policy: missing
     build: ${API_GATEWAY_BUILD:-https://github.com/Hack-Challenges-recommendation-system/API-gateway.git#develop}
     restart: unless-stopped
@@ -177,7 +203,7 @@ services:
     healthcheck: *java-healthcheck
 
   frontend:
-    image: ${DOCKERHUB_USER:-kekishev}/recommendation-system-frontend:${IMAGE_TAG:-latest}
+    image: ${DOCKERHUB_USER:-kekishev}/hackathon-recommendation-system-frontend:${IMAGE_TAG:-latest}
     pull_policy: missing
     build: ${FRONTEND_BUILD:-https://github.com/Hack-Challenges-recommendation-system/Frontend.git#develop}
     restart: unless-stopped
@@ -198,3 +224,4 @@ volumes:
   postgres_data:
   redis_data:
   kafka_data:
+  case_export:
