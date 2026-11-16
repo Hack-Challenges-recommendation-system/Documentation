@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: Alfa Course
+    orgId: 1
+    folder: Альфа-Курс
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards
